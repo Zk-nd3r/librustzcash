@@ -507,7 +507,9 @@ impl<A: Authorization> TransactionData<A> {
 
     /// Returns a mutable reference to the transparent bundle, if present.
     #[cfg(any(test, feature = "test-dependencies"))]
-    pub fn transparent_bundle_mut(&mut self) -> Option<&mut transparent::Bundle<A::TransparentAuth>> {
+    pub fn transparent_bundle_mut(
+        &mut self,
+    ) -> Option<&mut transparent::Bundle<A::TransparentAuth>> {
         self.transparent_bundle.as_mut()
     }
 
@@ -519,19 +521,26 @@ impl<A: Authorization> TransactionData<A> {
 
     /// Returns a mutable reference to the Sapling bundle, if present.
     #[cfg(any(test, feature = "test-dependencies"))]
-    pub fn sapling_bundle_mut(&mut self) -> Option<&mut sapling::Bundle<A::SaplingAuth, ZatBalance>> {
+    pub fn sapling_bundle_mut(
+        &mut self,
+    ) -> Option<&mut sapling::Bundle<A::SaplingAuth, ZatBalance>> {
         self.sapling_bundle.as_mut()
     }
 
     /// Returns a mutable reference to the Orchard bundle, if present.
     #[cfg(any(test, feature = "test-dependencies"))]
-    pub fn orchard_bundle_mut(&mut self) -> Option<&mut orchard::Bundle<A::OrchardAuth, ZatBalance>> {
+    pub fn orchard_bundle_mut(
+        &mut self,
+    ) -> Option<&mut orchard::Bundle<A::OrchardAuth, ZatBalance>> {
         self.orchard_bundle.as_mut()
     }
 
     /// Sets the Orchard bundle, replacing any existing one.
     #[cfg(any(test, feature = "test-dependencies"))]
-    pub fn set_orchard_bundle(&mut self, bundle: Option<orchard::Bundle<A::OrchardAuth, ZatBalance>>) {
+    pub fn set_orchard_bundle(
+        &mut self,
+        bundle: Option<orchard::Bundle<A::OrchardAuth, ZatBalance>>,
+    ) {
         self.orchard_bundle = bundle;
     }
 
@@ -814,7 +823,11 @@ impl Transaction {
     {
         f(&mut self.data);
         // Recompute txid after mutation
-        *self = self.data.clone().freeze().expect("mutated transaction should still be valid");
+        *self = self
+            .data
+            .clone()
+            .freeze()
+            .expect("mutated transaction should still be valid");
     }
 
     pub fn read<R: Read>(reader: R, consensus_branch_id: BranchId) -> io::Result<Self> {
