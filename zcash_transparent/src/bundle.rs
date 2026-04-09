@@ -249,6 +249,12 @@ impl<A: Authorization> TxIn<A> {
     pub fn sequence(&self) -> u32 {
         self.sequence
     }
+
+    /// Returns a mutable reference to the script sig.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn script_sig_mut(&mut self) -> &mut A::ScriptSig {
+        &mut self.script_sig
+    }
 }
 
 impl TxIn<Authorized> {

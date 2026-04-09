@@ -22,6 +22,15 @@ workspace.
 - `zcash_primitives::transaction::TransactionData<Authorized>` now
   implements `Clone`.
 - `zcash_primitives::transaction::Transaction` now implements `Clone`.
+- `zcash_primitives::transaction::Transaction::mutate_data` (test-only):
+  provides mutable access to `TransactionData` via a closure, recomputing
+  the txid afterward.
+- `zcash_primitives::transaction::TransactionData` (test-only mutable accessors):
+  `expiry_height_mut`, `consensus_branch_id_mut`, `transparent_bundle_mut`,
+  `sprout_bundle_mut`, `sapling_bundle_mut`, `orchard_bundle_mut`,
+  `set_orchard_bundle`.
+- `zcash_transparent::bundle::TxIn::script_sig_mut` (test-only):
+  mutable access to the script sig field.
 
 ## [0.26.4] - 2025-12-17
 

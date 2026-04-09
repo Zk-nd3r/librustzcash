@@ -491,6 +491,50 @@ impl<A: Authorization> TransactionData<A> {
         self.tze_bundle.as_ref()
     }
 
+    // ── Test-only mutable accessors ─────────────────────────────────
+
+    /// Returns a mutable reference to the expiry height.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn expiry_height_mut(&mut self) -> &mut BlockHeight {
+        &mut self.expiry_height
+    }
+
+    /// Returns a mutable reference to the consensus branch ID.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn consensus_branch_id_mut(&mut self) -> &mut BranchId {
+        &mut self.consensus_branch_id
+    }
+
+    /// Returns a mutable reference to the transparent bundle, if present.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn transparent_bundle_mut(&mut self) -> Option<&mut transparent::Bundle<A::TransparentAuth>> {
+        self.transparent_bundle.as_mut()
+    }
+
+    /// Returns a mutable reference to the Sprout bundle, if present.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn sprout_bundle_mut(&mut self) -> Option<&mut sprout::Bundle> {
+        self.sprout_bundle.as_mut()
+    }
+
+    /// Returns a mutable reference to the Sapling bundle, if present.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn sapling_bundle_mut(&mut self) -> Option<&mut sapling::Bundle<A::SaplingAuth, ZatBalance>> {
+        self.sapling_bundle.as_mut()
+    }
+
+    /// Returns a mutable reference to the Orchard bundle, if present.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn orchard_bundle_mut(&mut self) -> Option<&mut orchard::Bundle<A::OrchardAuth, ZatBalance>> {
+        self.orchard_bundle.as_mut()
+    }
+
+    /// Sets the Orchard bundle, replacing any existing one.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn set_orchard_bundle(&mut self, bundle: Option<orchard::Bundle<A::OrchardAuth, ZatBalance>>) {
+        self.orchard_bundle = bundle;
+    }
+
     /// Returns the total fees paid by the transaction, given a function that can be used to
     /// retrieve the value of previous transactions' transparent outputs that are being spent in
     /// this transaction.
@@ -756,6 +800,21 @@ impl Transaction {
 
     pub fn txid(&self) -> TxId {
         self.txid
+    }
+
+    /// Provides mutable access to the transaction data via a closure.
+    ///
+    /// The txid is recomputed after the closure returns to ensure consistency.
+    /// This is intentionally test-only because mutating a transaction after
+    /// construction can create semantically invalid transactions.
+    #[cfg(any(test, feature = "test-dependencies"))]
+    pub fn mutate_data<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut TransactionData<Authorized>),
+    {
+        f(&mut self.data);
+        // Recompute txid after mutation
+        *self = self.data.clone().freeze().expect("mutated transaction should still be valid");
     }
 
     pub fn read<R: Read>(reader: R, consensus_branch_id: BranchId) -> io::Result<Self> {
