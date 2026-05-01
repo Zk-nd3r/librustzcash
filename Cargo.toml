@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "components/core2",
     "components/eip681",
     "components/equihash",
     "components/f4jumble",
@@ -232,3 +233,4 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 [patch.crates-io]
 sapling = { package = "sapling-crypto", git = "https://github.com/zcash/sapling-crypto.git", rev = "e99f38a8f4685c381bb4cca94874092e50e3f7e9" }
 orchard = { package = "orchard", git = "https://github.com/zcash/orchard.git", rev = "6b12c77260aa7fac0d804983fc31b71b584d48e0" }
+core2 = { path = "components/core2" }

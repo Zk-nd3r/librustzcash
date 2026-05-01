@@ -1,0 +1,19 @@
+[package]
+name = "core2"
+version = "0.3.3"
+edition = "2021"
+rust-version = "1.81"
+description = "Local core2 compatibility shim for no_std I/O."
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/zcash/librustzcash"
+publish = false
+
+[dependencies]
+memchr = { version = "2", default-features = false }
+
+[features]
+default = ["std", "utils"]
+std = ["alloc"]
+alloc = []
+utils = []
+
