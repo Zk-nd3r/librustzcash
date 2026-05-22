@@ -8,7 +8,8 @@ use secrecy::{ExposeSecret, SecretVec};
 use shardtree::store::ShardStore as _;
 use zcash_client_backend::data_api::{
     AddressInfo, BlockMetadata, NullifierQuery, ReceivedTransactionOutput, WalletRead,
-    WalletSummary, Zip32Derivation,
+    WalletSummary, Zip32Derivation, defaults,
+    error::FindAccountForAddressError,
     scanning::ScanRange,
     wallet::{ConfirmationsPolicy, TargetHeight},
 };
@@ -398,7 +399,7 @@ impl<P: consensus::Parameters> WalletRead for MemoryWalletDb<P> {
                 .iter()
                 .filter(|(_, _, p)| p == &ScanPriority::Scanned)
                 .collect();
-            scanned_ranges.sort_by(|(start_a, _, _), (start_b, _, _)| start_a.cmp(start_b));
+            scanned_ranges.sort_by_key(|(start_a, _, _)| *start_a);
             if let Some(fully_scanned_height) = scanned_ranges.first().and_then(
                 |(block_range_start, block_range_end, _priority)| {
                     // If the start of the earliest scanned range is greater than
@@ -486,8 +487,8 @@ impl<P: consensus::Parameters> WalletRead for MemoryWalletDb<P> {
         tracing::debug!("get_unified_full_viewing_keys");
         Ok(self
             .accounts
-            .iter()
-            .filter_map(|(_id, account)| account.ufvk().map(|ufvk| (account.id(), ufvk.clone())))
+            .values()
+            .filter_map(|account| account.ufvk().map(|ufvk| (account.id(), ufvk.clone())))
             .collect())
     }
 
@@ -732,6 +733,14 @@ impl<P: consensus::Parameters> WalletRead for MemoryWalletDb<P> {
 
     fn list_addresses(&self, _account: Self::AccountId) -> Result<Vec<AddressInfo>, Self::Error> {
         todo!()
+    }
+
+    fn find_account_for_address<Q: consensus::Parameters>(
+        &self,
+        params: &Q,
+        address: &zcash_keys::address::Address,
+    ) -> Result<Option<Self::AccountId>, FindAccountForAddressError<Self::Error>> {
+        defaults::find_account_for_address(self, params, address)
     }
 
     fn get_last_generated_address_matching(

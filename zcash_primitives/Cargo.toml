@@ -1,7 +1,7 @@
 [package]
 name = "zcash_primitives"
 description = "Rust implementations of the Zcash primitives"
-version = "0.26.4"
+version = "0.27.1"
 authors = [
     "Jack Grigg <jack@z.cash>",
     "Kris Nuttycombe <kris@electriccoin.co>"
@@ -70,7 +70,7 @@ hex.workspace = true
 redjubjub.workspace = true
 
 # No-std support
-core2.workspace = true
+corez.workspace = true
 
 [dependencies.zcash_note_encryption]
 workspace = true

@@ -250,6 +250,11 @@ fn sqlite_client_error_to_wallet_migration_error(e: SqliteClientError) -> Wallet
         SqliteClientError::StandaloneImportConflict(_) => {
             unreachable!("we do not import standalone transparent addresses in migrations")
         }
+        #[cfg(feature = "orchard")]
+        SqliteClientError::HistoricalFrontierInvalid(_)
+        | SqliteClientError::HistoricalWitnessUnavailable { .. } => {
+            unreachable!("we do not generate historical witnesses in migrations")
+        }
     }
 }
 
@@ -837,11 +842,13 @@ mod tests {
             db::INDEX_ORCHARD_RECEIVED_NOTES_ACCOUNT,
             db::INDEX_ORCHARD_RECEIVED_NOTES_ADDRESS,
             db::INDEX_ORCHARD_RECEIVED_NOTES_TX,
+            db::INDEX_ORCHARD_RECEIVED_NOTES_WITNESS_STABILIZED,
             db::INDEX_SAPLING_RNS_NOTE,
             db::INDEX_SAPLING_RNS_TX,
             db::INDEX_SAPLING_RECEIVED_NOTES_ACCOUNT,
             db::INDEX_SAPLING_RECEIVED_NOTES_ADDRESS,
             db::INDEX_SAPLING_RECEIVED_NOTES_TX,
+            db::INDEX_SAPLING_RECEIVED_NOTES_WITNESS_STABILIZED,
             db::INDEX_SENT_NOTES_FROM_ACCOUNT,
             db::INDEX_SENT_NOTES_TO_ACCOUNT,
             db::INDEX_SENT_NOTES_TX,
@@ -1169,7 +1176,8 @@ mod tests {
 
             // add a sapling sent note
             wdb.conn.execute(
-                "INSERT INTO blocks (height, hash, time, sapling_tree) VALUES (0, 0, 0, x'000000')",
+                "INSERT INTO blocks (height, hash, time, sapling_tree) \
+                 VALUES (0, x'0000000000000000000000000000000000000000000000000000000000000000', 0, x'000000')",
                 [],
             )?;
 
@@ -1367,7 +1375,8 @@ mod tests {
                 )
                 .encode(&wdb.params);
                 wdb.conn.execute(
-                    "INSERT INTO blocks (height, hash, time, sapling_tree) VALUES (0, 0, 0, x'000000')",
+                    "INSERT INTO blocks (height, hash, time, sapling_tree) \
+                 VALUES (0, x'0000000000000000000000000000000000000000000000000000000000000000', 0, x'000000')",
                     [],
                 )?;
                 wdb.conn.execute(

@@ -6,8 +6,8 @@ use core::{
 use zcash_protocol::constants;
 
 use super::{
-    private::{SealedContainer, SealedItem},
     Container, Encoding, ParseError, Typecode,
+    private::{SealedContainer, SealedItem},
 };
 
 /// The set of known FVKs for Unified FVKs.
@@ -133,7 +133,7 @@ impl Container for Ufvk {
     /// Returns the FVKs contained within this UFVK, in the order they were
     /// parsed from the string encoding.
     ///
-    /// This API is for advanced usage; in most cases you should use `Ufvk::receivers`.
+    /// This API is for advanced usage; in most cases you should use `Ufvk::items`.
     fn items_as_parsed(&self) -> &[Fvk] {
         &self.0
     }
@@ -179,8 +179,8 @@ mod tests {
 
     use super::{Fvk, ParseError, Typecode, Ufvk};
     use crate::kind::unified::{
-        private::{SealedContainer, SealedItem},
         Container, Encoding,
+        private::{SealedContainer, SealedItem},
     };
     use zcash_protocol::consensus::NetworkType;
 

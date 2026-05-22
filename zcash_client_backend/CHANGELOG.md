@@ -8,10 +8,82 @@ indicated by the `PLANNED` status in order to make it possible to correctly
 represent the transitive `semver` implications of changes within the enclosing
 workspace.
 
-## [0.22.0] - PLANNED
+## [0.23.0] - PLANNED
+
+### Added
+- `zcash_client_backend::data_api::error::RewindError`
+- `zcash_client_backend::wallet::WalletTransparentOutput`:
+  - `recipient_account`
+  - `recipient_key_scope`
+  - `funding_account`
+- `zcash_client_backend::wallet::Recipient::InternalTransparent` (behind
+  the `transparent-inputs` feature flag): a new variant for recording the
+  send side of a transparent output whose recipient address belongs to a
+  wallet account (i.e., the wallet both funded and received the output).
+- `zcash_client_backend::TransferType::AccountInternal`: indicates an output
+  whose recipient and funder are the same wallet account (e.g. change). This
+  has the semantics previously carried by `TransferType::WalletInternal`.
+- `zcash_client_backend::data_api::wallet::propose_shielding_coinbase` and
+  `zcash_client_backend::data_api::wallet::input_selection::ShieldingSelector::propose_shielding_coinbase`,
+  which propose a transaction that shields one or more coinbase transparent
+  outputs to an arbitrary shielded recipient.
+- `zcash_client_backend::proposal::ProposalError::ShieldingRequiresShieldedRecipient`,
+  returned by `propose_shielding_coinbase` when the supplied `to_address` is
+  a transparent or TEX address.
+- `zcash_client_backend::data_api::wallet::ProposeShieldingCoinbaseErrT` type
+  alias, parallel to `ProposeShieldingErrT` but parameterized on a `FeeRule`
+  instead of a `ChangeStrategy`.
+
+### Changed
+- `zcash_client_backend::data_api`:
+  - Changes to the `InputSource` trait:
+    - The result types of `InputSource::get_unspent_transparent_output` and
+      `InputSource::get_unspent_transparent_outputs` have each changed; these
+      have reverted to returning `WalletTransparentOutput`.
+- `zcash_client_backend::data_api::SentTransaction`: the `account_id` field
+  and accessor have been renamed to `funding_account`, to disambiguate from
+  the recipient-account terminology now used by `WalletTransparentOutput`.
+- `zcash_client_backend::data_api::WalletWrite`:
+  - `rewind_to_height` has been replaced by `rewind_to_chain_state`. Callers
+    that previously passed a `BlockHeight` should now construct a
+    `ChainState` for the rewind target. The new method returns `Result<(),
+    RewindError<Self::AccountId, Self::Error>>`. If the rewind target is
+    below the birthday height of any account in the wallet, the call will
+    fail with `RewindError::RewindBeyondBirthdays`; the caller should re-try
+    with the affected account ids included in the `reset_account_birthdays`
+    argument to acknowledge that those birthdays will be lowered.
+- `zcash_client_backend::proposal`:
+  - `Proposal::single_step` and `Step::from_parts` now take transparent inputs
+    as `Vec<WalletTransparentOutput<()>>` (explicitly with no account ID).
+- `zcash_client_backend::TransferType::WalletInternal` semantics have
+  narrowed: it now specifically indicates a cross-account internal transfer
+  (recipient and funder are distinct wallet accounts). Code that previously
+  used `WalletInternal` for same-account self-transfers should switch to the
+  new `AccountInternal` variant.
+- `zcash_client_backend::wallet::WalletTransparentOutput` has been refactored
+  to convey information equivalent to `WalletOutput`:
+    - It now has an `AccountId` generic parameter,
+    - `from_parts` now takes additional `recipient_account`,
+      `recipient_key_scope`, and `funding_account` parameters.
+- `zcash_client_backend::data_api::wallet::input_selection::ShieldingSelector`
+  now requires implementors to provide `propose_shielding_coinbase` in
+  addition to `propose_shielding`.
+
+### Removed
+- `zcash_client_backend::data_api::WalletUtxo` (use `WalletTransparentOutput` 
+  instead).
+
+## [0.22.0] - 2026-04-27
 
 ### Added
 - `zcash_client_backend::data_api`:
+  - `error::FindAccountForAddressError`
+  - `WalletRead::find_account_for_address`
+  - `defaults` module, containing reference implementations of selected `WalletRead` /
+    `WalletWrite` trait methods that backend authors without an indexed implementation can
+    delegate to:
+    - `defaults::find_account_for_address`
+    - `defaults::address_receiver_matches_ua`
   - `TransparentKeyOrigin` enum (behind the `transparent-inputs` feature flag).
   - `TransparentBalances` type alias (behind the `transparent-inputs` feature flag).
   - `ll` module
@@ -33,6 +105,7 @@ workspace.
   - `LightdInfo` has added fields `upgrade_name`, `upgrade_height`, and `lighwallet_protocol_version`
   - `GetMempoolTxRequest` (previously named `Exclude`) has added field `pool_types`
 - `zcash_client_backend::fees::MetaSource`
+- `zcash_client_backend::scanning::ScanningKey::new`:
 - `zcash_client_backend::wallet`:
   - `transparent` module, behind the `transparent-inputs` feature flag.
   - `Note::receiver`
@@ -45,7 +118,10 @@ workspace.
   - `impl From<orchard::Note> for Note`
 
 ### Changed
-- Migrated to `orchard 0.12`, `sapling-crypto 0.6`, `zip321 0.7`.
+- Migrated to `orchard 0.13`, `sapling-crypto 0.7`, `zip321 0.7`,
+  `zcash_encoding 0.4`, `zcash_protocol 0.8`, `zcash_address 0.11`,
+  `zcash_transparent 0.7`, `zcash_primitives 0.27`, `zcash_proofs 0.27`,
+  `zcash_keys 0.13`, `pczt 0.6`.
 - `zcash_client_backend::data_api`:
   - Changes to the `WalletRead` trait:
     - `WalletRead::get_transparent_balances` now returns `TransparentBalances`
@@ -58,6 +134,8 @@ workspace.
   - Changes to the `WalletWrite` trait:
     - Added `WalletWrite::import_standalone_transparent_script` method.
     - Added `WalletWrite::truncate_to_chain_state` method.
+    - Added `WalletWrite::rewind_to_height` method.
+    - Added `WalletWrite::mark_transparent_addresses_exposed` method.
   - Type parameters to `DecryptedTransaction` have been modified. It now
     abstracts over the transaction type, to permit use with partial or compact
     transaction data instead of full transactions.

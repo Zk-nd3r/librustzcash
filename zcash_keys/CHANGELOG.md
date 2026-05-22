@@ -9,16 +9,19 @@ workspace.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-27
+
 ### Added
+- `zcash_keys::keys::OutgoingViewingKey`
+- `zcash_keys::keys::UnifiedFullViewingKey::select_ovk`
 - `zcash_keys::keys::UnifiedFullViewingKey::subsumes_ufvk`
 - `zcash_keys::keys::UnifiedFullViewingKey::subsumes_uivk`
 - `zcash_keys::keys::UnifiedIncomingViewingKey::subsumes`
+- `zcash_keys::keys::UnifiedIncomingViewingKey::decrypt_diversifiers`
 - `impl {PartialEq, Eq} for zcash_keys::keys::UnifiedIncomingViewingKey`
 - `zcash_keys::keys::ReceiverRequirementError`
 - `zcash_keys::keys::transparent::DerDecodeError` (behind the
   `transparent-key-encoding` feature flag)
-- `zcash_keys::keys::OutgoingViewingKey`
-- `zcash_keys::keys::UnifiedFullViewingKey::select_ovk`
 - `zcash_keys::keys::transparent::gap_limits` module (behind the
   `transparent-inputs` feature flag), containing:
   - `GapLimits` type (moved from `zcash_client_backend::wallet::transparent`).
@@ -29,6 +32,9 @@ workspace.
   - `GapAddressesError`
 
 ### Changed
+- MSRV is now 1.85.1.
+- Migrated to `orchard 0.13`, `sapling-crypto 0.7`, `zcash_encoding 0.4`, `zcash_protocol 0.8`, `zcash_address 0.11`, `zcash_transparent 0.7`.
+- Migrated from the yanked `core2` crate to `corez 0.1.1`.
 - `zcash_keys::keys::ReceiverRequirement::intersect`,
   `UnifiedAddressRequest::new`, `ReceiverRequirements::new`,
   `ReceiverRequirements::intersect`, and
@@ -37,8 +43,6 @@ workspace.
 - `zcash_keys::keys::transparent::Key::der_decode` now returns
   `Result<Self, DerDecodeError>` instead of `Result<Self, ()>` (behind the
   `transparent-key-encoding` feature flag).
-- MSRV is now 1.85.1.
-- Migrated to `orchard 0.12`, `sapling-crypto 0.6`.
 - The `std` feature flag now enables the equivalent flag on the dependencies
   `orchard`, `sapling-crypto`, `zcash_transparent`, and `zcash_address`.
 

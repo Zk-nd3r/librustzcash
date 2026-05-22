@@ -816,13 +816,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ea2b9bc92be3c2baa9334a323ebca2d6f074ff852cd1d7b11064035cd3868f"
 
 [[package]]
-name = "core2"
-version = "0.3.3"
+name = "corez"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "239fa3ae9b63c2dc74bd3fa852d4792b8b305ae64eeede946265b6af62f1fff3"
-dependencies = [
- "memchr",
-]
+checksum = "4df6f98652d30167eaeea34d77b730e07c8caba6df17bd4551842b9b8da01deb"
 
 [[package]]
 name = "cpp_demangle"
@@ -1595,11 +1592,11 @@ dependencies = [
 
 [[package]]
 name = "equihash"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "blake2b_simd",
  "cc",
- "core2",
+ "corez",
  "document-features",
  "hex",
 ]
@@ -2969,13 +2966,14 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "orchard"
-version = "0.12.0"
-source = "git+https://github.com/zcash/orchard.git?rev=6b12c77260aa7fac0d804983fc31b71b584d48e0#6b12c77260aa7fac0d804983fc31b71b584d48e0"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a36733033adae631acacf46f542f027d508d9025d14797d9b35059494c99eb3"
 dependencies = [
  "aes",
  "bitvec",
  "blake2b_simd",
- "core2",
+ "corez",
  "ff",
  "fpe",
  "getset",
@@ -3147,7 +3145,7 @@ dependencies = [
 
 [[package]]
 name = "pczt"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "blake2b_simd",
  "bls12_381",
@@ -4126,8 +4124,9 @@ dependencies = [
 
 [[package]]
 name = "sapling-crypto"
-version = "0.6.2"
-source = "git+https://github.com/zcash/sapling-crypto.git?rev=e99f38a8f4685c381bb4cca94874092e50e3f7e9#e99f38a8f4685c381bb4cca94874092e50e3f7e9"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d70756ede56b5e4dd417979777bd87ddb83dfcbd0815dbf8175a9920537f8a0"
 dependencies = [
  "aes",
  "bellman",
@@ -4135,7 +4134,7 @@ dependencies = [
  "blake2b_simd",
  "blake2s_simd",
  "bls12_381",
- "core2",
+ "corez",
  "document-features",
  "ff",
  "fpe",
@@ -7026,12 +7025,12 @@ dependencies = [
 
 [[package]]
 name = "zcash_address"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "assert_matches",
  "bech32",
  "bs58",
- "core2",
+ "corez",
  "f4jumble",
  "proptest",
  "zcash_encoding",
@@ -7040,7 +7039,7 @@ dependencies = [
 
 [[package]]
 name = "zcash_client_backend"
-version = "0.21.2"
+version = "0.22.0"
 dependencies = [
  "ambassador",
  "arti-client",
@@ -7161,7 +7160,7 @@ dependencies = [
 
 [[package]]
 name = "zcash_client_sqlite"
-version = "0.19.5"
+version = "0.20.2"
 dependencies = [
  "ambassador",
  "assert_matches",
@@ -7217,9 +7216,9 @@ dependencies = [
 
 [[package]]
 name = "zcash_encoding"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
- "core2",
+ "corez",
  "hex",
  "nonempty",
  "proptest",
@@ -7255,7 +7254,7 @@ dependencies = [
 
 [[package]]
 name = "zcash_keys"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "assert_matches",
  "bech32",
@@ -7265,7 +7264,7 @@ dependencies = [
  "bls12_381",
  "bs58",
  "byteorder",
- "core2",
+ "corez",
  "document-features",
  "group",
  "hex",
@@ -7307,13 +7306,13 @@ dependencies = [
 
 [[package]]
 name = "zcash_primitives"
-version = "0.26.4"
+version = "0.27.1"
 dependencies = [
  "assert_matches",
  "blake2b_simd",
  "block-buffer 0.11.0-rc.3",
  "chacha20poly1305",
- "core2",
+ "corez",
  "criterion 0.5.1",
  "crypto-common 0.2.0-rc.1",
  "document-features",
@@ -7343,7 +7342,7 @@ dependencies = [
 
 [[package]]
 name = "zcash_proofs"
-version = "0.26.1"
+version = "0.27.0"
 dependencies = [
  "bellman",
  "blake2b_simd",
@@ -7366,9 +7365,9 @@ dependencies = [
 
 [[package]]
 name = "zcash_protocol"
-version = "0.7.2"
+version = "0.8.0"
 dependencies = [
- "core2",
+ "corez",
  "document-features",
  "hex",
  "incrementalmerkletree",
@@ -7406,11 +7405,11 @@ dependencies = [
 
 [[package]]
 name = "zcash_transparent"
-version = "0.6.3"
+version = "0.7.0"
 dependencies = [
  "bip32",
  "bs58",
- "core2",
+ "corez",
  "document-features",
  "getset",
  "hex",
@@ -7497,7 +7496,7 @@ dependencies = [
 
 [[package]]
 name = "zip321"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "base64",
  "nom",

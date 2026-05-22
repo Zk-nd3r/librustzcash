@@ -6,6 +6,7 @@ use sapling::zip32::ExtendedSpendingKey;
 use transparent::{
     address::TransparentAddress,
     bundle::{OutPoint, TxOut},
+    keys::TransparentKeyScope,
 };
 use zcash_keys::{
     address::Address,
@@ -126,8 +127,15 @@ where
     let txout = TxOut::new(value, taddr.script().into());
 
     // Pretend the output's transaction was mined at `height_1`.
-    let utxo = WalletTransparentOutput::from_parts(outpoint.clone(), txout.clone(), Some(height_1))
-        .unwrap();
+    let utxo = WalletTransparentOutput::from_parts(
+        outpoint.clone(),
+        txout.clone(),
+        Some(height_1),
+        Some(account_id),
+        Some(TransparentKeyScope::EXTERNAL),
+        None,
+    )
+    .unwrap();
     let res0 = st.wallet_mut().put_received_transparent_utxo(&utxo);
     assert_matches!(res0, Ok(_));
 
@@ -153,7 +161,15 @@ where
     // the same `UtxoId`.
     let height_2 = birthday + 34567;
     st.wallet_mut().update_chain_tip(height_2).unwrap();
-    let utxo2 = WalletTransparentOutput::from_parts(outpoint, txout, Some(height_2)).unwrap();
+    let utxo2 = WalletTransparentOutput::from_parts(
+        outpoint,
+        txout,
+        Some(height_2),
+        Some(account_id),
+        Some(TransparentKeyScope::EXTERNAL),
+        None,
+    )
+    .unwrap();
     let res1 = st.wallet_mut().put_received_transparent_utxo(&utxo2);
     assert_matches!(res1, Ok(id) if id == res0.unwrap());
 
@@ -238,7 +254,15 @@ where
 
     // Pretend the output was received in the chain tip.
     let height = st.wallet().chain_height().unwrap().unwrap();
-    let utxo = WalletTransparentOutput::from_parts(OutPoint::fake(), txout, Some(height)).unwrap();
+    let utxo = WalletTransparentOutput::from_parts(
+        OutPoint::fake(),
+        txout,
+        Some(height),
+        Some(account.id()),
+        Some(TransparentKeyScope::EXTERNAL),
+        None,
+    )
+    .unwrap();
     st.wallet_mut()
         .put_received_transparent_utxo(&utxo)
         .unwrap();
@@ -333,6 +357,104 @@ where
     );
 }
 
+/// Regression test for [PRO-291]: shielding a transparent balance composed of many P2PKH
+/// UTXOs must not fail with `ChangeRequired` due to fee disagreement between the proposal
+/// and builder layers.
+///
+/// At 150 P2PKH inputs the proposal-time fee computation (which uses
+/// `STANDARD_P2PKH = 150` bytes per input) starts to diverge from the builder-time
+/// fee computation (which historically used the actual serialized size, 149 bytes per
+/// input) due to the `ceildiv(t_in_total_size, 150)` term in the ZIP 317 fee formula.
+/// The discrepancy grows by one logical action (5000 zats) for every additional 150
+/// inputs.
+///
+/// [PRO-291]: https://linear.app/zodl/issue/PRO-291
+pub fn shielding_many_transparent_utxos<DSF>(dsf: DSF, cache: impl TestCache)
+where
+    DSF: DataStoreFactory,
+{
+    // Choose enough UTXOs to cross the first ceildiv(_, 150) boundary.
+    const NUM_UTXOS: usize = 160;
+    // Per-UTXO value comfortably above the marginal fee so none are treated as dust.
+    const PER_UTXO: u64 = 100_000;
+
+    let mut st = TestBuilder::new()
+        .with_data_store_factory(dsf)
+        .with_block_cache(cache)
+        .with_account_from_sapling_activation(BlockHash([0; 32]))
+        .build();
+
+    let account = st.test_account().cloned().unwrap();
+    let uaddr = st
+        .wallet()
+        .get_last_generated_address_matching(account.id(), UnifiedAddressRequest::AllAvailableKeys)
+        .unwrap()
+        .unwrap();
+    let taddr = uaddr.transparent().unwrap();
+
+    // Initialize the wallet with chain data that has no shielded notes for us.
+    let not_our_key = ExtendedSpendingKey::master(&[]).to_diversifiable_full_viewing_key();
+    let not_our_value = Zatoshis::const_from_u64(10_000);
+    let (start_height, _, _) =
+        st.generate_next_block(&not_our_key, AddressType::DefaultExternal, not_our_value);
+    for _ in 1..10 {
+        st.generate_next_block(&not_our_key, AddressType::DefaultExternal, not_our_value);
+    }
+    st.scan_cached_blocks(start_height, 10);
+
+    // Add many distinct P2PKH UTXOs to the wallet, all at the same transparent address.
+    let value = Zatoshis::const_from_u64(PER_UTXO);
+    let txout = TxOut::new(value, taddr.script().into());
+    let height = st.wallet().chain_height().unwrap().unwrap();
+    for i in 0..NUM_UTXOS {
+        let mut hash = [0u8; 32];
+        hash[..4].copy_from_slice(&(i as u32).to_le_bytes());
+        let outpoint = OutPoint::new(hash, 0);
+        let utxo = WalletTransparentOutput::from_parts(
+            outpoint,
+            txout.clone(),
+            Some(height),
+            Some(account.id()),
+            Some(TransparentKeyScope::EXTERNAL),
+            None,
+        )
+        .unwrap();
+        st.wallet_mut()
+            .put_received_transparent_utxo(&utxo)
+            .unwrap();
+    }
+
+    // Shield the transparent balance.
+    let input_selector = GreedyInputSelector::new();
+    let change_strategy = standard::SingleOutputChangeStrategy::new(
+        StandardFeeRule::Zip317,
+        None,
+        ShieldedProtocol::Sapling,
+        DustOutputPolicy::default(),
+    );
+    let txids = st
+        .shield_transparent_funds(
+            &input_selector,
+            &change_strategy,
+            value,
+            account.usk(),
+            &[*taddr],
+            account.id(),
+            ConfirmationsPolicy::MIN,
+        )
+        .expect("shielding many P2PKH UTXOs should succeed");
+    assert_eq!(txids.len(), 1);
+
+    // After shielding, the transparent balance should be zero.
+    check_balance::<DSF>(
+        &st,
+        &account,
+        taddr,
+        ConfirmationsPolicy::MIN,
+        &Balance::ZERO,
+    );
+}
+
 /// This test attempts to verify that transparent funds spendability is
 /// accounted for properly given the different minimum confirmations values
 /// that can be set when querying for balances.
@@ -379,7 +501,15 @@ where
 
     // Pretend the output was received in the chain tip.
     let height = st.wallet().chain_height().unwrap().unwrap();
-    let utxo = WalletTransparentOutput::from_parts(OutPoint::fake(), txout, Some(height)).unwrap();
+    let utxo = WalletTransparentOutput::from_parts(
+        OutPoint::fake(),
+        txout,
+        Some(height),
+        Some(account.id()),
+        Some(TransparentKeyScope::EXTERNAL),
+        None,
+    )
+    .unwrap();
     st.wallet_mut()
         .put_received_transparent_utxo(&utxo)
         .unwrap();
@@ -745,7 +875,15 @@ where
     let value = Zatoshis::const_from_u64(50_000);
     let outpoint = OutPoint::fake();
     let txout = TxOut::new(value, taddr.script().into());
-    let utxo = WalletTransparentOutput::from_parts(outpoint, txout, Some(height)).unwrap();
+    let utxo = WalletTransparentOutput::from_parts(
+        outpoint,
+        txout,
+        Some(height),
+        Some(account_id),
+        None,
+        None,
+    )
+    .unwrap();
     st.wallet_mut()
         .put_received_transparent_utxo(&utxo)
         .unwrap();
@@ -821,7 +959,15 @@ where
     let value = Zatoshis::from_u64(100000).unwrap();
     let height = st.wallet().chain_height().unwrap().unwrap();
     let txout = TxOut::new(value, taddr.script().into());
-    let utxo = WalletTransparentOutput::from_parts(OutPoint::fake(), txout, Some(height)).unwrap();
+    let utxo = WalletTransparentOutput::from_parts(
+        OutPoint::fake(),
+        txout,
+        Some(height),
+        Some(account_id),
+        None,
+        None,
+    )
+    .unwrap();
     st.wallet_mut()
         .put_received_transparent_utxo(&utxo)
         .unwrap();
@@ -1075,7 +1221,15 @@ where
     let value = Zatoshis::const_from_u64(50_000);
     let outpoint = OutPoint::fake();
     let txout = TxOut::new(value, taddr.script().into());
-    let utxo = WalletTransparentOutput::from_parts(outpoint, txout, Some(height)).unwrap();
+    let utxo = WalletTransparentOutput::from_parts(
+        outpoint,
+        txout,
+        Some(height),
+        Some(account_id),
+        None,
+        None,
+    )
+    .unwrap();
     st.wallet_mut()
         .put_received_transparent_utxo(&utxo)
         .unwrap();
@@ -1148,7 +1302,15 @@ where
     let value = Zatoshis::from_u64(100000).unwrap();
     let height = st.wallet().chain_height().unwrap().unwrap();
     let txout = TxOut::new(value, taddr.script().into());
-    let utxo = WalletTransparentOutput::from_parts(OutPoint::fake(), txout, Some(height)).unwrap();
+    let utxo = WalletTransparentOutput::from_parts(
+        OutPoint::fake(),
+        txout,
+        Some(height),
+        Some(account_id),
+        None,
+        None,
+    )
+    .unwrap();
     st.wallet_mut()
         .put_received_transparent_utxo(&utxo)
         .unwrap();
@@ -1217,5 +1379,206 @@ where
             .sapling_balance()
             .change_pending_confirmation(),
         (value - fee).unwrap(),
+    );
+}
+
+/// Tests [`WalletWrite::mark_transparent_addresses_exposed`] by observing the effect on the
+/// address's exposure metadata via
+/// [`WalletRead::get_transparent_address_metadata`](crate::data_api::WalletRead::get_transparent_address_metadata).
+pub fn mark_transparent_addresses_exposed<DSF>(dsf: DSF)
+where
+    DSF: DataStoreFactory,
+{
+    use crate::{data_api::WalletRead, wallet::Exposure};
+    use zcash_protocol::consensus::BlockHeight;
+
+    let mut st = TestBuilder::new()
+        .with_data_store_factory(dsf)
+        .with_account_from_sapling_activation(BlockHash([0; 32]))
+        .build();
+
+    let account_id = st.test_account().unwrap().id();
+    let taddr = *st
+        .wallet()
+        .get_last_generated_address_matching(account_id, UnifiedAddressRequest::AllAvailableKeys)
+        .unwrap()
+        .unwrap()
+        .transparent()
+        .unwrap();
+
+    let exposure_of = |st: &TestState<_, <DSF as DataStoreFactory>::DataStore, LocalNetwork>,
+                       addr: &TransparentAddress|
+     -> Exposure {
+        st.wallet()
+            .get_transparent_address_metadata(account_id, addr)
+            .unwrap()
+            .unwrap()
+            .exposure()
+    };
+
+    // Calling with a very high height does not raise an already-recorded exposure,
+    // and records the provided height if no prior exposure was tracked.
+    let initial = exposure_of(&st, &taddr);
+    let very_high = BlockHeight::from(u32::MAX);
+    st.wallet_mut()
+        .mark_transparent_addresses_exposed(&[(taddr, very_high)])
+        .unwrap();
+    match initial {
+        Exposure::Exposed { at_height, .. } => assert_matches!(
+            exposure_of(&st, &taddr),
+            Exposure::Exposed { at_height: h, .. } if h == at_height
+        ),
+        Exposure::Unknown | Exposure::CannotKnow => assert_matches!(
+            exposure_of(&st, &taddr),
+            Exposure::Exposed { at_height: h, .. } if h == very_high
+        ),
+    }
+
+    // Calling with a lower height lowers the recorded exposure.
+    st.wallet_mut()
+        .mark_transparent_addresses_exposed(&[(taddr, BlockHeight::from(0))])
+        .unwrap();
+    assert_matches!(
+        exposure_of(&st, &taddr),
+        Exposure::Exposed { at_height, .. } if at_height == BlockHeight::from(0)
+    );
+
+    // Calling with a higher height does not raise the recorded exposure.
+    st.wallet_mut()
+        .mark_transparent_addresses_exposed(&[(taddr, BlockHeight::from(100))])
+        .unwrap();
+    assert_matches!(
+        exposure_of(&st, &taddr),
+        Exposure::Exposed { at_height, .. } if at_height == BlockHeight::from(0)
+    );
+
+    // An address not tracked by the wallet must return an error.
+    let unknown = TransparentAddress::PublicKeyHash([0u8; 20]);
+    assert!(
+        st.wallet_mut()
+            .mark_transparent_addresses_exposed(&[(unknown, BlockHeight::from(1))])
+            .is_err()
+    );
+
+    // An empty input is a no-op.
+    st.wallet_mut()
+        .mark_transparent_addresses_exposed(&[])
+        .unwrap();
+}
+
+/// Tests that [`WalletWrite::mark_transparent_addresses_exposed`] correctly handles bulk
+/// input: all addresses in a successful call must be marked, and an unrecognized address
+/// must cause the entire call to be rolled back.
+pub fn mark_transparent_addresses_exposed_bulk<DSF>(dsf: DSF)
+where
+    DSF: DataStoreFactory,
+{
+    use crate::{data_api::WalletRead, wallet::Exposure};
+    use zcash_protocol::consensus::BlockHeight;
+
+    let gap_limits = GapLimits::new(5, 2, 2);
+    let mut st = TestBuilder::new()
+        .with_data_store_factory(dsf)
+        .with_gap_limits(gap_limits)
+        .with_account_from_sapling_activation(BlockHash([0; 32]))
+        .build();
+
+    let account_id = st.test_account().unwrap().id();
+
+    let mut receivers = st
+        .wallet()
+        .get_transparent_receivers(account_id, false, true)
+        .unwrap()
+        .into_iter()
+        .filter_map(|(addr, meta)| {
+            let exposure = meta.exposure();
+            meta.address_index().map(|i| (i.index(), addr, exposure))
+        })
+        .collect::<Vec<_>>();
+    receivers.sort_by_key(|(i, _, _)| *i);
+
+    // Use known-unexposed receivers for the bulk-success test, so that the post-call
+    // recorded height is exactly the one we pass in regardless of any default exposure
+    // that address generation may set on other receivers.
+    let unexposed = receivers
+        .iter()
+        .copied()
+        .filter(|(_, _, exposure)| matches!(exposure, Exposure::Unknown))
+        .collect::<Vec<_>>();
+    assert!(
+        unexposed.len() >= 2,
+        "account should have at least 2 unexposed derived receivers"
+    );
+
+    // Mark two unexposed addresses at distinct heights in a single bulk call.
+    let (_idx_a, addr_a, _) = unexposed[0];
+    let (_idx_b, addr_b, _) = unexposed[1];
+    let height_a = BlockHeight::from(10);
+    let height_b = BlockHeight::from(20);
+    st.wallet_mut()
+        .mark_transparent_addresses_exposed(&[(addr_a, height_a), (addr_b, height_b)])
+        .unwrap();
+
+    let exposure_of = |st: &TestState<_, <DSF as DataStoreFactory>::DataStore, LocalNetwork>,
+                       addr: &TransparentAddress|
+     -> Exposure {
+        st.wallet()
+            .get_transparent_address_metadata(account_id, addr)
+            .unwrap()
+            .unwrap()
+            .exposure()
+    };
+    assert_matches!(
+        exposure_of(&st, &addr_a),
+        Exposure::Exposed { at_height, .. } if at_height == height_a
+    );
+    assert_matches!(
+        exposure_of(&st, &addr_b),
+        Exposure::Exposed { at_height, .. } if at_height == height_b
+    );
+
+    // Now attempt a bulk call where the second entry is unrecognized. The whole call must
+    // fail, and the first entry must not have been partially applied. Pick a third
+    // receiver distinct from `addr_a`/`addr_b` — its prior exposure state is irrelevant
+    // since the assertion is preservation, not a specific height.
+    let (idx_c, addr_c, _) = *receivers
+        .iter()
+        .find(|(_, addr, _)| *addr != addr_a && *addr != addr_b)
+        .expect("account should have a third derived receiver");
+    let before = exposure_of(&st, &addr_c);
+    let unknown = TransparentAddress::PublicKeyHash([0x7u8; 20]);
+    assert!(
+        st.wallet_mut()
+            .mark_transparent_addresses_exposed(&[
+                (addr_c, BlockHeight::from(5)),
+                (unknown, BlockHeight::from(5)),
+            ])
+            .is_err()
+    );
+    assert_eq!(
+        exposure_of(&st, &addr_c),
+        before,
+        "exposure at index {idx_c} must not change when bulk call fails atomically"
+    );
+}
+
+/// Tests that [`WalletWrite::mark_transparent_addresses_exposed`] returns an error when
+/// asked to mark an address that the wallet does not track.
+pub fn mark_transparent_addresses_exposed_unknown_address<DSF>(dsf: DSF)
+where
+    DSF: DataStoreFactory,
+{
+    use zcash_protocol::consensus::BlockHeight;
+
+    let mut st = TestBuilder::new()
+        .with_data_store_factory(dsf)
+        .with_account_from_sapling_activation(BlockHash([0; 32]))
+        .build();
+
+    let unknown = TransparentAddress::PublicKeyHash([0u8; 20]);
+    assert!(
+        st.wallet_mut()
+            .mark_transparent_addresses_exposed(&[(unknown, BlockHeight::from(1))])
+            .is_err()
     );
 }

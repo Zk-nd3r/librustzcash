@@ -4,7 +4,10 @@ use rand_chacha::ChaChaRng;
 use rusqlite::Connection;
 use std::num::NonZeroU32;
 use std::time::Duration;
-use std::{collections::HashMap, time::SystemTime};
+use std::{
+    collections::{HashMap, HashSet},
+    time::SystemTime,
+};
 use uuid::Uuid;
 
 use tempfile::NamedTempFile;
@@ -17,6 +20,7 @@ use zcash_client_backend::{
     data_api::{
         TargetValue,
         chain::{ChainState, CommitmentTreeRoot},
+        error::RewindError,
         scanning::ScanRange,
         testing::{DataStoreFactory, Reset, TestState},
         wallet::{ConfirmationsPolicy, TargetHeight},
@@ -33,7 +37,7 @@ use zcash_primitives::{
     transaction::{Transaction, TxId},
 };
 use zcash_protocol::{
-    ShieldedProtocol, consensus::BlockHeight, local_consensus::LocalNetwork, memo::Memo,
+    ShieldedProtocol, consensus, consensus::BlockHeight, local_consensus::LocalNetwork, memo::Memo,
 };
 use zip32::DiversifierIndex;
 
