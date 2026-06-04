@@ -46,6 +46,10 @@ jobs:
   mutants:
     name: Mutation testing of ${{ matrix.package }}
     runs-on: ubuntu-latest
+    # Scheduled mutation sweeps are signal collection for the fork, not a release
+    # gate. Keep manual dispatch strict so targeted mutation runs still fail when
+    # surviving mutants need attention.
+    continue-on-error: ${{ github.event_name == 'schedule' }}
     strategy:
       fail-fast: false
       matrix:
